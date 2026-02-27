@@ -1,0 +1,48 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      # 支持跨平台构建 (ARM64/AMD64)
+      platforms:
+        - "linux/amd64"
+        - "linux/arm64"
+    ports:
+      - "9999:80"
+    environment:
+      - ConnectionStrings__DefaultConnection=server=mysql;port=3306;database=hangfire_db;user=root;password=root;Allow User Variables=True
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - hangfire-network
+    restart: unless-stopped
+
+  mysql:
+    # MySQL 8.0 官方镜像支持 ARM64 和 AMD64
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: hangfire_db
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - hangfire-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+networks:
+  hangfire-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
